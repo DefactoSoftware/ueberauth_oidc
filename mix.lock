@@ -1,0 +1,12 @@
+%{
+  "base64url": {:hex, :base64url, "0.0.1", "36a90125f5948e3afd7be97662a1504b934dd5dac78451ca6e9abf85a10286be", [], [], "hexpm"},
+  "dialyxir": {:hex, :dialyxir, "0.5.1", "b331b091720fd93e878137add264bac4f644e1ddae07a70bf7062c7862c4b952", [], [], "hexpm"},
+  "earmark": {:hex, :earmark, "1.2.4", "99b637c62a4d65a20a9fb674b8cffb8baa771c04605a80c911c4418c69b75439", [], [], "hexpm"},
+  "erljwt": {:hex, :erljwt, "2.0.2", "3d17f4bfe965f712a58f3d6ad424fd100d028987fded6834a64e94091f44d3c9", [], [{:base64url, "0.0.1", [hex: :base64url, repo: "hexpm", optional: false]}, {:jsone, "1.4.0", [hex: :jsone, repo: "hexpm", optional: false]}], "hexpm"},
+  "ex_doc": {:hex, :ex_doc, "0.18.1", "37c69d2ef62f24928c1f4fdc7c724ea04aecfdf500c4329185f8e3649c915baf", [], [{:earmark, "~> 1.1", [hex: :earmark, repo: "hexpm", optional: false]}], "hexpm"},
+  "jsone": {:hex, :jsone, "1.4.0", "6ecfd2c91e16f48e1535743b57d01a42c65d7dd51a8b43e5723b1f79927169a8", [], [], "hexpm"},
+  "mime": {:hex, :mime, "1.2.0", "78adaa84832b3680de06f88f0997e3ead3b451a440d183d688085be2d709b534", [], [], "hexpm"},
+  "oidcc": {:hex, :oidcc, "1.7.0", "795bb529e176791af3e9ed8d49a507972857b8947ddf33cab39e6d7b77e28e26", [], [{:erljwt, "2.0.2", [hex: :erljwt, repo: "hexpm", optional: false]}], "hexpm"},
+  "plug": {:hex, :plug, "1.4.3", "236d77ce7bf3e3a2668dc0d32a9b6f1f9b1f05361019946aae49874904be4aed", [], [{:cowboy, "~> 1.0.1 or ~> 1.1", [hex: :cowboy, repo: "hexpm", optional: true]}, {:mime, "~> 1.0", [hex: :mime, repo: "hexpm", optional: false]}], "hexpm"},
+  "ueberauth": {:hex, :ueberauth, "0.5.0", "4570ec94d7f784dc4c4aa94c83391dbd9b9bd7b66baa30e95a666c5ec1b168b1", [], [{:plug, "~> 1.2", [hex: :plug, repo: "hexpm", optional: false]}], "hexpm"},
+}
