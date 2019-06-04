@@ -95,7 +95,7 @@ defmodule Ueberauth.Strategy.OIDC do
   end
 
   defp maybe_put_userinfo(%{private: %{ueberauth_oidc_tokens: tokens}} = conn, opts) do
-    with true <- opts |> option(:user_info) |> is_bitstring(),
+    with true <- option(opts, :fetch_userinfo),
          provider <- get_provider(opts),
          token <- scrub_value(tokens[:access][:token]),
          {:ok, user_info} <- :oidcc.retrieve_user_info(token, provider) do
@@ -120,7 +120,8 @@ defmodule Ueberauth.Strategy.OIDC do
   def uid(conn) do
     private = conn.private
 
-    with user_info <- option(private.ueberauth_oidc_opts, :user_info),
+    with true <- option(private.ueberauth_oidc_opts, :fetch_userinfo),
+         user_info <- option(private.ueberauth_oidc_opts, :userinfo_uid_field),
          true <- is_bitstring(user_info) do
       scrub_value(private.ueberauth_oidc_user_info[user_info])
     else

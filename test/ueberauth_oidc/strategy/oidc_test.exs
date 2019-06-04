@@ -54,7 +54,7 @@ defmodule Ueberauth.Strategy.OIDCTest do
            end
          ]},
         {Ueberauth.Strategy.Helpers, [:passtrough],
-         [options: fn _ -> [test_provider: [user_info: nil]] end]}
+         [options: fn _ -> [test_provider: [fetch_userinfo: false]] end]}
       ] do
         callback =
           OIDC.handle_callback!(%Plug.Conn{
@@ -64,7 +64,11 @@ defmodule Ueberauth.Strategy.OIDCTest do
 
         assert %Plug.Conn{
                  private: %{
-                   ueberauth_oidc_opts: [provider: "test_provider", uid_field: _, user_info: nil],
+                   ueberauth_oidc_opts: [
+                     provider: "test_provider",
+                     uid_field: _,
+                     fetch_userinfo: false
+                   ],
                    ueberauth_oidc_tokens: %{access: _, id: _}
                  }
                } = callback
@@ -81,7 +85,7 @@ defmodule Ueberauth.Strategy.OIDCTest do
            end
          ]},
         {Ueberauth.Strategy.Helpers, [:passtrough],
-         [options: fn _ -> [test_provider: [user_info: "uid"]] end]}
+         [options: fn _ -> [test_provider: [fetch_userinfo: true, userinfo_uid_field: "uid"]] end]}
       ] do
         callback =
           OIDC.handle_callback!(%Plug.Conn{
@@ -94,7 +98,8 @@ defmodule Ueberauth.Strategy.OIDCTest do
                    ueberauth_oidc_opts: [
                      provider: "test_provider",
                      uid_field: _,
-                     user_info: "uid"
+                     fetch_userinfo: true,
+                     userinfo_uid_field: "uid"
                    ],
                    ueberauth_oidc_tokens: %{access: _, id: _},
                    ueberauth_oidc_user_info: %{"sub" => "string_key", "uid" => "atom_key"}
@@ -205,12 +210,24 @@ defmodule Ueberauth.Strategy.OIDCTest do
     test "Get the uid from the user_info" do
       conn = %Plug.Conn{
         private: %{
-          ueberauth_oidc_opts: [user_info: "upn"],
+          ueberauth_oidc_opts: [fetch_userinfo: true, userinfo_uid_field: "upn"],
           ueberauth_oidc_user_info: %{"upn" => "upn_id"}
         }
       }
 
       assert OIDC.uid(conn) == "upn_id"
+    end
+
+    test "Get the uid from the id_token if fetch_userinfo is not set" do
+      conn = %Plug.Conn{
+        private: %{
+          ueberauth_oidc_opts: [userinfo_uid_field: "upn", uid_field: "sub"],
+          ueberauth_oidc_user_info: %{"upn" => "upn_id"},
+          ueberauth_oidc_tokens: %{id: %{claims: %{"sub" => "sub_id"}}}
+        }
+      }
+
+      assert OIDC.uid(conn) == "sub_id"
     end
 
     test "Get the uid from the id_token" do
