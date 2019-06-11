@@ -45,11 +45,17 @@ defmodule Ueberauth.Strategy.OIDCTest do
       end
     end
 
-    test "Handle callback from provider with a session_id, validate tokens" do
-      with_mock :oidcc,
-        retrieve_and_validate_token: fn _, _, _ ->
-          {:ok, %{id: %{claims: :claims}, access: %{hash: :verified}}}
-        end do
+    test "Handle callback from provider with a uid_field in the id_token" do
+      with_mocks [
+        {:oidcc, [],
+         [
+           retrieve_and_validate_token: fn _, _, _ ->
+             {:ok, %{id: %{claims: :claims}, access: %{hash: :verified, token: "123"}}}
+           end
+         ]},
+        {Ueberauth.Strategy.Helpers, [:passtrough],
+         [options: fn _ -> [test_provider: [fetch_userinfo: false]] end]}
+      ] do
         callback =
           OIDC.handle_callback!(%Plug.Conn{
             params: %{"state" => 1234, "code" => 1234, "oidc_provider" => "test_provider"},
@@ -58,8 +64,45 @@ defmodule Ueberauth.Strategy.OIDCTest do
 
         assert %Plug.Conn{
                  private: %{
-                   ueberauth_oidc_opts: [provider: "test_provider", uid_field: _],
+                   ueberauth_oidc_opts: [
+                     provider: "test_provider",
+                     uid_field: _,
+                     fetch_userinfo: false
+                   ],
                    ueberauth_oidc_tokens: %{access: _, id: _}
+                 }
+               } = callback
+      end
+    end
+
+    test "Handle callback from provider with a user_info endpoint" do
+      with_mocks [
+        {:oidcc, [],
+         [
+           retrieve_user_info: fn _, _ -> {:ok, %{:uid => "atom_key", "sub" => "string_key"}} end,
+           retrieve_and_validate_token: fn _, _, _ ->
+             {:ok, %{id: %{claims: :claims}, access: %{hash: :verified, token: "123"}}}
+           end
+         ]},
+        {Ueberauth.Strategy.Helpers, [:passtrough],
+         [options: fn _ -> [test_provider: [fetch_userinfo: true, userinfo_uid_field: "uid"]] end]}
+      ] do
+        callback =
+          OIDC.handle_callback!(%Plug.Conn{
+            params: %{"state" => 1234, "code" => 1234, "oidc_provider" => "test_provider"},
+            private: %{ueberauth_request_options: %{options: []}}
+          })
+
+        assert %Plug.Conn{
+                 private: %{
+                   ueberauth_oidc_opts: [
+                     provider: "test_provider",
+                     uid_field: _,
+                     fetch_userinfo: true,
+                     userinfo_uid_field: "uid"
+                   ],
+                   ueberauth_oidc_tokens: %{access: _, id: _},
+                   ueberauth_oidc_user_info: %{"sub" => "string_key", "uid" => "atom_key"}
                  }
                } = callback
       end
@@ -164,7 +207,30 @@ defmodule Ueberauth.Strategy.OIDCTest do
                OIDC.handle_cleanup!(conn_with_values)
     end
 
-    test "Get the uid from the conn" do
+    test "Get the uid from the user_info" do
+      conn = %Plug.Conn{
+        private: %{
+          ueberauth_oidc_opts: [fetch_userinfo: true, userinfo_uid_field: "upn"],
+          ueberauth_oidc_user_info: %{"upn" => "upn_id"}
+        }
+      }
+
+      assert OIDC.uid(conn) == "upn_id"
+    end
+
+    test "Get the uid from the id_token if fetch_userinfo is not set" do
+      conn = %Plug.Conn{
+        private: %{
+          ueberauth_oidc_opts: [userinfo_uid_field: "upn", uid_field: "sub"],
+          ueberauth_oidc_user_info: %{"upn" => "upn_id"},
+          ueberauth_oidc_tokens: %{id: %{claims: %{"sub" => "sub_id"}}}
+        }
+      }
+
+      assert OIDC.uid(conn) == "sub_id"
+    end
+
+    test "Get the uid from the id_token" do
       conn = %Plug.Conn{
         private: %{
           ueberauth_oidc_opts: [uid_field: :sub],
