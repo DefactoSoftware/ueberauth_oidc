@@ -37,6 +37,8 @@ defmodule Ueberauth.Strategy.OIDC do
   def handle_callback!(conn) do
     case conn.params["state"] do
       nil ->
+        IO.inspect("CALLBACK ERROR")
+        IO.inspect(conn)
         set_error!(conn, "error", "Query string does not contain field 'state'")
 
       session_id ->
