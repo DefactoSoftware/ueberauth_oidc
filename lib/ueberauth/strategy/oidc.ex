@@ -67,7 +67,8 @@ defmodule Ueberauth.Strategy.OIDC do
           {:error, e} when is_atom(e) or is_binary(e) ->
             set_error!(conn, @oidcc_error, to_string(e))
 
-          _ ->
+          e ->
+            IO.inspect("OIDC_ERROR" <> Jason.encode!(e))
             set_error!(conn, @oidcc_error, "Failed to retrieve and validate tokens")
         end
 
