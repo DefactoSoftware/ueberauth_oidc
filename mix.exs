@@ -34,9 +34,8 @@ defmodule UeberauthOIDC.Mixfile do
     [
       {:dialyxir, "~> 0.5", only: :dev, runtime: false},
       {:ex_doc, "~> 0.18", only: :dev, runtime: false},
-      {:jsone, "~> 1.4", override: true},
       {:mock, "~> 0.3.0", only: :test},
-      {:oidcc, "~> 1.8"},
+      {:openid_connect, "~> 0.2.2"},
       {:ueberauth, "~> 0.6"}
     ]
   end
