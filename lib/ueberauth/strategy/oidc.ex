@@ -3,7 +3,7 @@ defmodule Ueberauth.Strategy.OIDC do
   OIDC Strategy for Ueberauth.
   """
 
-  use Ueberauth.Strategy, uid_field: :sub
+  use Ueberauth.Strategy
 
   alias Ueberauth.Auth.Credentials
   alias Ueberauth.Auth.Extra
@@ -15,15 +15,15 @@ defmodule Ueberauth.Strategy.OIDC do
   def handle_request!(conn) do
     provider_id = conn |> get_options!() |> get_provider()
 
-    with uri <- OpenIDConnect.authorization_uri(provider_id),
-         true <- byte_size(uri) > 0 do
+    try do
+      uri = OpenIDConnect.authorization_uri(provider_id)
       redirect!(conn, uri)
-    else
-      error ->
+    rescue
+      _ ->
         set_error!(
           conn,
           "error",
-          "Authorization URL could not be constructed: " <> Jason.encode!(error)
+          "Authorization URL could not be constructed"
         )
     end
   end
