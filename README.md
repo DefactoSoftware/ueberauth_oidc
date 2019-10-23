@@ -1,9 +1,12 @@
 # Überauth OIDC
 
-> Generic OpenID Connect strategy for Ueberauth.
+> OIDC Provider for Ueberauth using the OpenIDProvider library.
 
-This library provides an Ueberauth OIDC strategy implemented as a thin `:oidcc` client.
-It is a leaky abstraction, and thus requires some knowledge of `:oidcc` to configure and use.
+This library provides an OIDC strategy for Ueberauth using the information in the `/.well-known` url.
+Only supports `authorization_code` flow for now.
+Has optional support for `/userinfo` endpoints, and has the option to get a user's `uid_field` from either the claims or the userinfo.
+
+*Originally based on rng2/ueberauth_oidc but has now diverged significantly from the source*
 
 ## Installation
 
@@ -11,9 +14,17 @@ It is a leaky abstraction, and thus requires some knowledge of `:oidcc` to confi
 
     ```elixir
     def deps do
-      [{:ueberauth_oidc, git: "https://github.com/rng2/ueberauth_oidc.git", tag: "0.0.1"}]
+      [{:ueberauth_oidc, git: "https://github.com/DefactoSoftware/ueberauth_oidc.git"}]
     end
     ```
+
+   Or if available in hex:
+
+   ```elixir
+    def deps do
+      [{:ueberauth_oidc, "~> 1.0"}]
+    end
+   ```
 
 ## Configuration
 
@@ -25,11 +36,17 @@ It is a leaky abstraction, and thus requires some knowledge of `:oidcc` to confi
         oidc: { Ueberauth.Strategy.OIDC, [
           default: [
             # required
-            provider: :auth0,
+            provider: :default_provider,
 
             # optional
             uid_field: :sub
           ],
+
+          default_provider: [
+            fetch_userinfo: true, # true/false
+            userinfo_uid_field: "upn", # only include if getting the user_id from userinfo
+            uid_field: "sub" # only include if getting the user_id from the claims
+          ]
 
           # optional override for each provider
           google: [uid_field: :email],
@@ -39,41 +56,20 @@ It is a leaky abstraction, and thus requires some knowledge of `:oidcc` to confi
     ```
 
 1. Update your provider configuration.
-See [:oidcc docs](https://github.com/indigo-dc/oidcc#setup-an-openid-connect-provider)
+See [OpenIDConnect](https://hexdocs.pm/openid_connect/readme.html)
 for a list of supported options.
 
     ```elixir
     config :ueberauth, UeberauthOIDC,
-      # required
-      local_endpoint: "http://host:port/auth/oidc/callback",
-
       # one or more providers
-      auth0: [
-        # required
-        issuer_or_config_endpoint: "https://myapp.auth0.com",
-        client_id: "CLIENT_ID",
-        client_secret: "CLIENT_SECRET",
-
-        # other oidcc options (excluding :static_extend_url)
-        request_scopes: ["openid", "profile", "email"]
-        ...
+      default_oidc: [
+        discovery_document_uri: "https://oidc.example/.well-known/openid-configuration",
+        client_id: "client_id",
+        client_secret: "123456789",
+        redirect_uri: "https://your.url/auth/oidc/callback",
+        response_type: "code",
+        scope: "openid profile email"
       ],
-      google: [
-        ...
-      ]
-    ```
-
-1. Configure `:oidcc`. See the [docs](https://github.com/indigo-dc/oidcc#configuration)
-for a list of supported options.
-
-    ```elixir
-    config :oidcc,
-      # required
-      cacertfile: "path/to/cacert.pem",
-
-      # optional
-      cert_depth: 5,
-      support_none_algorithm: false,
       ...
     ```
 
@@ -107,19 +103,24 @@ Note that the `Ueberauth.Strategy.Info` struct stored in `Ueberauth.Auth`
 will be empty. Use the information in `Ueberauth.Auth.Credentials` and
 `Ueberauth.Strategy.Extra` instead:
 
-   - The `other` map in `Ueberauth.Auth.Credentials` contains `provider` and `id_token`
+   - `Ueberauth.Auth.Credentials` contains the `access_token` and related fields
 
-   - `Ueberauth.Strategy.Extra` contains the raw token map returned from `:oidcc`,
-     including all claims extracted from the id token.
+   - The `other` map in `Ueberauth.Auth.Credentials` contains `provider` and `user_info`
 
-1.  Call `UeberauthOIDC.init!/0` during application startup:
+   - `Ueberauth.Strategy.Extra` contains the raw claims, tokens and opts
 
-	```elixir
+1.  Add `OpenIDConnect.Worker` with a provider list during application startup:
+
+	  ```elixir
     def start(_type, _args) do
       ...
-      # initialize ueberauth_oidc
-      UeberauthOIDC.init!()
+      children = [
+        ...,
+        {OpenIDConnect.Worker, Application.get_env(:ueberauth, UeberauthOIDC)},
+        ...
+      ]
       ...
+      Supervisor.start_link(children, opts)
     end
     ```
 
@@ -135,5 +136,7 @@ To use another provider instead of the configured default, add the `oidc_provide
 
 ## License
 
-Please see [LICENSE](https://github.com/rng2/ueberauth_oidc/blob/master/LICENSE)
+Please see [LICENSE](https://github.com/DefactoSoftware/ueberauth_oidc/blob/master/LICENSE)
 for licensing details.
+
+Loosely based on [rng2/ueberauth_oidc](https://github.com/rng2/ueberauth_oidc).

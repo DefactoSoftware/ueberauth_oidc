@@ -3,31 +3,28 @@ defmodule Ueberauth.Strategy.OIDC do
   OIDC Strategy for Ueberauth.
   """
 
-  use Ueberauth.Strategy, uid_field: :sub
+  use Ueberauth.Strategy
 
   alias Ueberauth.Auth.Credentials
   alias Ueberauth.Auth.Extra
   alias Ueberauth.Auth.Info
 
-  @oidcc_error "oidcc_error"
-
   @doc """
   Handles the initial authentication request.
   """
   def handle_request!(conn) do
-    opts = get_options!(conn)
-
-    {:ok, provider_id} = get_and_validate_provider(opts)
-    {:ok, session} = :oidcc_session_mgr.new_session(provider_id)
+    provider_id = conn |> get_options!() |> get_provider()
 
     try do
-      {:ok, url} = :oidcc.create_redirect_for_session(session)
-      redirect!(conn, url)
+      uri = OpenIDConnect.authorization_uri(provider_id)
+      redirect!(conn, uri)
     rescue
-      e ->
-        stacktrace = System.stacktrace()
-        :oidcc_session.close(session)
-        reraise e, stacktrace
+      _ ->
+        set_error!(
+          conn,
+          "error",
+          "Authorization URL could not be constructed"
+        )
     end
   end
 
@@ -35,74 +32,52 @@ defmodule Ueberauth.Strategy.OIDC do
   Handles the callback from the oidc provider.
   """
   def handle_callback!(conn) do
-    case conn.params["state"] do
+    case conn.params["code"] do
       nil ->
-        set_error!(conn, "error", "Query string does not contain field 'state'")
+        set_error!(conn, "error", "Query string does not contain field 'code'")
 
-      session_id ->
-        case :oidcc_session_mgr.get_session(session_id) do
-          {:error, reason} -> set_error!(conn, @oidcc_error, reason)
-          {:ok, session} -> handle_callback!(conn, session)
-        end
-    end
-  end
-
-  defp handle_callback!(conn, session) do
-    case conn.params["error"] do
-      nil ->
+      code ->
         opts = get_options!(conn)
-
         provider_id = get_provider(opts)
-        {:ok, ^provider_id} = :oidcc_session.get_provider(session)
-        {:ok, pkce} = :oidcc_session.get_pkce(session)
-        {:ok, nonce} = :oidcc_session.get_nonce(session)
-        {:ok, scope} = :oidcc_session.get_scopes(session)
-        config = %{nonce: nonce, pkce: pkce, scope: scope}
-        code = conn.params["code"]
 
-        case :oidcc.retrieve_and_validate_token(code, provider_id, config) do
-          {:ok, tokens} ->
-            validate_tokens(conn, opts, tokens)
-
-          {:error, e} when is_atom(e) or is_binary(e) ->
-            set_error!(conn, @oidcc_error, to_string(e))
+        with {:ok, %{"access_token" => access_token, "id_token" => id_token} = tokens} <-
+               OpenIDConnect.fetch_tokens(provider_id, %{code: code}),
+             {:ok, claims} <- OpenIDConnect.verify(provider_id, id_token) do
+          conn
+          |> put_private(:ueberauth_oidc_claims, claims)
+          |> put_private(:ueberauth_oidc_tokens, tokens)
+          |> put_private(:ueberauth_oidc_opts, opts)
+          |> maybe_put_userinfo(opts, access_token)
+        else
+          {:error, reason} ->
+            set_error!(conn, "error", reason)
 
           _ ->
-            set_error!(conn, @oidcc_error, "Failed to retrieve and validate tokens")
+            set_error!(conn, "error", "Unexpected token response")
         end
-
-      message ->
-        set_error!(conn, "oidc_provider_error", message)
-    end
-  after
-    :oidcc_session.close(session)
-  end
-
-  defp validate_tokens(conn, opts, tokens) do
-    cond do
-      tokens[:id][:claims] == :undefined ->
-        set_error!(conn, @oidcc_error, "Failed to extract claims from id_token")
-
-      tokens[:access][:hash] not in [:verified, :no_hash] ->
-        set_error!(conn, @oidcc_error, "Failed to validate id_token hash")
-
-      true ->
-        conn
-        |> put_private(:ueberauth_oidc_opts, opts)
-        |> put_private(:ueberauth_oidc_tokens, tokens)
-        |> maybe_put_userinfo(opts)
     end
   end
 
-  defp maybe_put_userinfo(%{private: %{ueberauth_oidc_tokens: tokens}} = conn, opts) do
+  defp maybe_put_userinfo(conn, opts, access_token) do
     with true <- option(opts, :fetch_userinfo),
-         provider <- get_provider(opts),
-         token <- scrub_value(tokens[:access][:token]),
-         {:ok, user_info} <- :oidcc.retrieve_user_info(token, provider) do
-      user_info = for {k, v} <- user_info, do: {to_string(k), v}, into: %{}
+         provider_id <- get_provider(opts),
+         {:ok, user_info} <- get_userinfo(provider_id, access_token) do
       put_private(conn, :ueberauth_oidc_user_info, user_info)
     else
-      _ -> conn
+      false -> conn
+      e -> set_error!(conn, "error", "Error retrieving userinfo:" <> inspect(e))
+    end
+  end
+
+  defp get_userinfo(provider_id, access_token) do
+    headers = [Authorization: "Bearer #{access_token}", "Content-Type": "application/json"]
+
+    with %{"userinfo_endpoint" => userinfo_endpoint} <-
+           GenServer.call(:openid_connect, {:discovery_document, provider_id}),
+         %HTTPoison.Response{body: body} <- HTTPoison.get!(userinfo_endpoint, headers),
+         userinfo_claims <- Jason.decode!(body) do
+      user_info = for {k, v} <- userinfo_claims, do: {to_string(k), v}, into: %{}
+      {:ok, user_info}
     end
   end
 
@@ -110,6 +85,7 @@ defmodule Ueberauth.Strategy.OIDC do
   def handle_cleanup!(conn) do
     conn
     |> put_private(:ueberauth_oidc_opts, nil)
+    |> put_private(:ueberauth_oidc_claims, nil)
     |> put_private(:ueberauth_oidc_tokens, nil)
     |> put_private(:ueberauth_oidc_user_info, nil)
   end
@@ -127,7 +103,7 @@ defmodule Ueberauth.Strategy.OIDC do
     else
       _ ->
         uid_field = option(private.ueberauth_oidc_opts, :uid_field)
-        scrub_value(private.ueberauth_oidc_tokens[:id][:claims][uid_field])
+        scrub_value(private.ueberauth_oidc_claims[uid_field])
     end
   end
 
@@ -138,25 +114,22 @@ defmodule Ueberauth.Strategy.OIDC do
   """
   def credentials(conn) do
     private = conn.private
+    claims = conn.private.ueberauth_oidc_claims
     tokens = conn.private.ueberauth_oidc_tokens
     user_info = conn.private[:ueberauth_oidc_user_info]
 
-    exp_at =
-      tokens[:access][:expires]
-      |> scrub_value()
-      |> expires_at()
+    exp_at = claims["exp"] |> scrub_value() |> expires_at()
+    access_token = tokens["access_token"] |> scrub_value()
+    token_type = tokens["token_type"] |> scrub_value()
 
     %Credentials{
-      token: scrub_value(tokens[:access][:token]),
-      refresh_token: scrub_value(tokens[:refresh][:token]),
-      token_type: "Bearer",
+      token: access_token,
+      token_type: token_type,
       expires: !!exp_at,
       expires_at: exp_at,
-      scopes: scrub_value(tokens[:scope][:list]),
       other: %{
         user_info: user_info,
-        provider: get_provider(private.ueberauth_oidc_opts),
-        id_token: scrub_value(tokens[:id][:token])
+        provider: get_provider(private.ueberauth_oidc_opts)
       }
     }
   end
@@ -171,7 +144,9 @@ defmodule Ueberauth.Strategy.OIDC do
   def extra(conn) do
     %Extra{
       raw_info: %{
-        tokens: conn.private.ueberauth_oidc_tokens
+        claims: conn.private.ueberauth_oidc_claims,
+        tokens: conn.private.ueberauth_oidc_tokens,
+        opts: conn.private.ueberauth_oidc_opts
       }
     }
   end
@@ -194,23 +169,7 @@ defmodule Ueberauth.Strategy.OIDC do
     set_errors!(conn, [error(key, message)])
   end
 
-  defp get_and_validate_provider(opts) do
-    provider_id = get_provider(opts)
-
-    case :oidcc.get_openid_provider_info(provider_id) do
-      {:ok, %{ready: true}} ->
-        {:ok, provider_id}
-
-      {:ok, %{ready: false}} ->
-        {:provider_not_ready, provider_id}
-
-      _ ->
-        {:bad_provider, provider_id}
-    end
-  end
-
   defp get_provider(opts), do: option(opts, :provider)
-
   defp option(opts, key), do: Keyword.get(opts, key)
 
   defp get_options!(conn) do
@@ -234,7 +193,7 @@ defmodule Ueberauth.Strategy.OIDC do
     default_options()
     |> Keyword.merge(supplied_defaults)
     |> Keyword.merge(provider_opts)
-    |> Keyword.put(:provider, to_string(provider_id))
+    |> Keyword.put(:provider, provider_id)
   end
 
   defp expires_at(nil), do: nil
