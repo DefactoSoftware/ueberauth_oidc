@@ -52,8 +52,8 @@ defmodule Ueberauth.Strategy.OIDC do
           {:error, reason} ->
             set_error!(conn, "error", reason)
 
-          _ ->
-            set_error!(conn, "error", "Unexpected token response")
+          e ->
+            set_error!(conn, "error", "Unexpected token response:" <> inspect(e))
         end
     end
   end

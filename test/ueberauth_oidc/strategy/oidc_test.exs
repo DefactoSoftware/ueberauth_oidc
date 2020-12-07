@@ -147,7 +147,7 @@ defmodule Ueberauth.Strategy.OIDCTest do
     end
 
     test "Handle callback from provider with an unknown response" do
-      with_mock OpenIDConnect, fetch_tokens: fn _, _ -> {:unknown, "some_message"} end do
+      with_mock OpenIDConnect, fetch_tokens: fn _, _ -> {:unknown, "unknown_response"} end do
         OIDC.handle_callback!(%Plug.Conn{
           params: %{"code" => 1234, "oidc_provider" => "test_provider"},
           private: %{ueberauth_request_options: %{options: []}}
@@ -155,7 +155,7 @@ defmodule Ueberauth.Strategy.OIDCTest do
 
         assert_called(
           Ueberauth.Strategy.Helpers.set_errors!(:_, [
-            {"error", "Unexpected token response"}
+            {"error", "Unexpected token response:{:unknown, \"unknown_response\"}"}
           ])
         )
       end
