@@ -49,11 +49,14 @@ defmodule Ueberauth.Strategy.OIDC do
           |> put_private(:ueberauth_oidc_opts, opts)
           |> maybe_put_userinfo(opts, access_token)
         else
+          {:error, type, reason} ->
+            set_error!(conn, type, reason)
+
           {:error, reason} ->
             set_error!(conn, "error", reason)
 
-          _ ->
-            set_error!(conn, "error", "Unexpected token response")
+          error ->
+            set_error!(conn, "unknown_error", error)
         end
     end
   end
