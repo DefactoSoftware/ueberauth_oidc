@@ -13,13 +13,19 @@ defmodule Ueberauth.Strategy.OIDC do
   Handles the initial authentication request.
   """
   def handle_request!(conn) do
+    IO.inspect("HANDLING REQUEST")
     provider_id = conn |> get_options!() |> get_provider()
+    IO.inspect("PROVIDER ID IS #{provider_id}")
 
     try do
+      IO.inspect("GETTING AUTH URL")
       uri = OpenIDConnect.authorization_uri(provider_id)
+      IO.inspect("AUTH URL IS #{uri}")
       redirect!(conn, uri)
     rescue
       _ ->
+        IO.inspect("AUTH URL CONSTRUCTION ERROR")
+
         set_error!(
           conn,
           "error",
