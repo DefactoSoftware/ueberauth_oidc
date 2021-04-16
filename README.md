@@ -35,18 +35,12 @@ Has optional support for `/userinfo` endpoints, and has the option to get a user
       providers: [
         oidc: { Ueberauth.Strategy.OIDC, [
           default: [
-            # required
-            provider: :default_provider,
+            # required, set to default provider you want to use
+            provider: :default_oidc,
 
             # optional
             uid_field: :sub
           ],
-
-          default_provider: [
-            fetch_userinfo: true, # true/false
-            userinfo_uid_field: "upn", # only include if getting the user_id from userinfo
-            uid_field: "sub" # only include if getting the user_id from the claims
-          ]
 
           # optional override for each provider
           google: [uid_field: :email],
@@ -60,9 +54,12 @@ See [OpenIDConnect](https://hexdocs.pm/openid_connect/readme.html)
 for a list of supported options.
 
     ```elixir
-    config :ueberauth, UeberauthOIDC,
+    config :ueberauth, Ueberauth.Strategy.OIDC,
       # one or more providers
       default_oidc: [
+        fetch_userinfo: true, # true/false
+        userinfo_uid_field: "upn", # only include if getting the user_id from userinfo
+        uid_field: "sub" # only include if getting the user_id from the claims
         discovery_document_uri: "https://oidc.example/.well-known/openid-configuration",
         client_id: "client_id",
         client_secret: "123456789",
@@ -116,7 +113,7 @@ will be empty. Use the information in `Ueberauth.Auth.Credentials` and
       ...
       children = [
         ...,
-        {OpenIDConnect.Worker, Application.get_env(:ueberauth, UeberauthOIDC)},
+        {OpenIDConnect.Worker, Application.get_env(:ueberauth, Ueberauth.Strategy.OIDC)},
         ...
       ]
       ...
