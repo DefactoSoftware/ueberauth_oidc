@@ -176,8 +176,8 @@ defmodule Ueberauth.Strategy.OIDC do
   defp option(opts, key), do: Keyword.get(opts, key)
 
   defp get_options!(conn) do
-    all_opts = options(conn)
-    supplied_defaults = Keyword.get(all_opts, :default, [])
+    oidc_opts = Application.get_env(:ueberauth, __MODULE__, [])
+    supplied_defaults = conn |> options() |> Keyword.get(:default, [])
 
     # untrusted input
     provider_id = conn.params["oidc_provider"] || Keyword.fetch!(supplied_defaults, :provider)
@@ -185,10 +185,10 @@ defmodule Ueberauth.Strategy.OIDC do
     provider_opts =
       case is_atom(provider_id) do
         true ->
-          Keyword.get(all_opts, provider_id, [])
+          Keyword.get(oidc_opts, provider_id, [])
 
         false ->
-          Enum.find_value(all_opts, [], fn {key, val} ->
+          Enum.find_value(oidc_opts, [], fn {key, val} ->
             if provider_id == to_string(key), do: val
           end)
       end
