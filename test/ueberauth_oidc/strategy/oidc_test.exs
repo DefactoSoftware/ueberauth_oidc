@@ -54,8 +54,10 @@ defmodule Ueberauth.Strategy.OIDCTest do
     end
 
     test "Handle callback from provider with a uid_field in the id_token" do
-      with_mock Ueberauth.Strategy.Helpers, [:passtrough],
-        options: fn _ -> [test_provider: [fetch_userinfo: false, uid_field: "uid"]] end do
+      with_mock Application, [:passtrough],
+        get_env: fn :ueberauth, OIDC, [] ->
+          [test_provider: [fetch_userinfo: false, uid_field: "uid"]]
+        end do
         callback =
           OIDC.handle_callback!(%Plug.Conn{
             params: %{"code" => 1234, "oidc_provider" => "test_provider"},
@@ -85,8 +87,12 @@ defmodule Ueberauth.Strategy.OIDCTest do
              %HTTPoison.Response{body: "{\"sub\":\"string_key\",\"uid\":\"atom_key\"}"}
            end
          ]},
-        {Ueberauth.Strategy.Helpers, [:passtrough],
-         [options: fn _ -> [test_provider: [fetch_userinfo: true, userinfo_uid_field: "uid"]] end]}
+        {Application, [:passtrough],
+         [
+           get_env: fn :ueberauth, OIDC, [] ->
+             [test_provider: [fetch_userinfo: true, userinfo_uid_field: "uid"]]
+           end
+         ]}
       ] do
         callback =
           OIDC.handle_callback!(%Plug.Conn{
