@@ -6,7 +6,8 @@ defmodule Ueberauth.Strategy.OIDCTest do
 
   alias Ueberauth.Strategy.OIDC
 
-  @local_endpoint "https://oidc.local/callback"
+  @request_uri "https://oidc.local/request"
+  @callback_uri "https://oidc.local/callback"
   @valid_tokens {:ok, %{"access_token" => "1234", "id_token" => "4321"}}
   @valid_claims {:ok, %{"uid" => "1234"}}
   @error_response {:error, "reason"}
@@ -15,7 +16,10 @@ defmodule Ueberauth.Strategy.OIDCTest do
     setup_with_mocks [
       {OpenIDConnect, [],
        [
-         authorization_uri: fn "test_provider" -> @local_endpoint end,
+         authorization_uri: fn
+           ("test_provider", %{redirect_uri: redirect_uri}) ->
+             "#{@request_uri}?redirect_uri=#{redirect_uri}"
+         end,
          fetch_tokens: fn _, _ -> @valid_tokens end,
          verify: fn _, _ -> @valid_claims end
        ]},
@@ -24,7 +28,8 @@ defmodule Ueberauth.Strategy.OIDCTest do
          options: fn _ -> [] end,
          set_errors!: fn _, _ -> nil end,
          error: fn key, msg -> {key, msg} end,
-         redirect!: fn _, url -> url end
+         redirect!: fn _, url -> url end,
+         callback_url: fn _ -> @callback_uri end
        ]}
     ] do
       :ok
@@ -37,7 +42,7 @@ defmodule Ueberauth.Strategy.OIDCTest do
           private: %{ueberauth_request_options: %{options: []}}
         })
 
-      assert request =~ @local_endpoint
+      assert request == "#{@request_uri}?redirect_uri=#{@callback_uri}"
     end
 
     test "Handles an error in an OIDC request" do
@@ -51,6 +56,21 @@ defmodule Ueberauth.Strategy.OIDCTest do
           {"error", "Authorization URL could not be constructed"}
         ])
       )
+    end
+
+    test "Handle callback from provider with a redirect_uri" do
+      with_mock Application, [:passtrough],
+        get_env: fn :ueberauth, OIDC, [] ->
+          [test_provider: [redirect_uri: "https://oidc.local/custom"]]
+        end do
+        request =
+          OIDC.handle_request!(%Plug.Conn{
+            params: %{"oidc_provider" => "test_provider"},
+            private: %{ueberauth_request_options: %{options: []}}
+          })
+
+        assert request =~ ~r|\?redirect_uri=https://oidc.local/custom$|
+      end
     end
 
     test "Handle callback from provider with a uid_field in the id_token" do
