@@ -77,7 +77,7 @@ defmodule Ueberauth.Strategy.OIDC do
 
     with %{"userinfo_endpoint" => userinfo_endpoint} <-
            GenServer.call(:openid_connect, {:discovery_document, provider_id}),
-         %HTTPoison.Response{body: body} <- HTTPoison.get!(userinfo_endpoint, headers),
+         %HTTPoison.Response{body: body} <- http_client().get!(userinfo_endpoint, headers),
          userinfo_claims <- Jason.decode!(body) do
       user_info = for {k, v} <- userinfo_claims, do: {to_string(k), v}, into: %{}
       {:ok, user_info}
@@ -213,5 +213,9 @@ defmodule Ueberauth.Strategy.OIDC do
   defp unix_now() do
     {mega, sec, _micro} = :os.timestamp()
     mega * 1_000_000 + sec
+  end
+
+  defp http_client() do
+    Application.get_env(:ueberauth_oidc, :http_client, HTTPoison)
   end
 end
