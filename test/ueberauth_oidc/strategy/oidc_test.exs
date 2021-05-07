@@ -286,6 +286,35 @@ defmodule Ueberauth.Strategy.OIDCTest do
              } = OIDC.credentials(conn)
     end
 
+    test "Get info from the conn" do
+      conn = %Plug.Conn{
+        private: %{
+          ueberauth_oidc_user_info: %{
+            "name" => "name",
+            "email" => "email",
+          }
+        }
+      }
+
+      assert %Ueberauth.Auth.Info{
+               name: "name",
+               email: "email"
+             } = OIDC.info(conn)
+    end
+
+    test "Get info from the conn when fetch_userinfo is disabled" do
+      conn = %Plug.Conn{
+        private: %{
+          ueberauth_oidc_user_info: nil
+        }
+      }
+
+      assert %Ueberauth.Auth.Info{
+               name: nil,
+               email: nil
+             } = OIDC.info(conn)
+    end
+
     test "Puts the raw token map in the Extra struct" do
       conn = %Plug.Conn{
         private: %{

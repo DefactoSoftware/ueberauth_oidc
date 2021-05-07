@@ -155,13 +155,20 @@ defmodule Ueberauth.Strategy.OIDC do
   end
 
   @doc """
-  Returns an empty `Ueberauth.Auth.Info` struct.
+  Returns a `Ueberauth.Auth.Info` struct populated with the data returned from
+  the userinfo endpoint.
 
-  Use information included in the `Ueberauth.Auth.Credentials` and
-  `Ueberauth.Auth.Extra` structs instead.
+  This information is also included in the `Ueberauth.Auth.Credentials` struct.
   """
-  def info(_conn) do
-    %Info{}
+  def info(conn) do
+    with user_info when not is_nil(user_info) <-
+           conn.private[:ueberauth_oidc_user_info],
+         user_info <-
+           Enum.map(user_info, fn {k, v} -> {String.to_existing_atom(k), v} end) do
+      struct(Info, user_info)
+    else
+      _ -> %Info{}
+    end
   end
 
   defp scrub_value(:undefined), do: nil
