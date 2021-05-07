@@ -23,7 +23,7 @@ defmodule Ueberauth.Strategy.OIDCTest do
          fetch_tokens: fn _, _ -> @valid_tokens end,
          verify: fn _, _ -> @valid_claims end
        ]},
-      {Ueberauth.Strategy.Helpers, [:passtrough],
+      {Ueberauth.Strategy.Helpers, [],
        [
          options: fn _ -> [] end,
          set_errors!: fn _, _ -> nil end,
@@ -59,7 +59,7 @@ defmodule Ueberauth.Strategy.OIDCTest do
     end
 
     test "Handle callback from provider with a redirect_uri" do
-      with_mock Application, [:passtrough],
+      with_mock Application, [],
         get_env: fn :ueberauth, OIDC, [] ->
           [test_provider: [redirect_uri: "https://oidc.local/custom"]]
         end do
@@ -74,7 +74,7 @@ defmodule Ueberauth.Strategy.OIDCTest do
     end
 
     test "Handle callback from provider with a uid_field in the id_token" do
-      with_mock Application, [:passtrough],
+      with_mock Application, [],
         get_env: fn :ueberauth, OIDC, [] ->
           [test_provider: [fetch_userinfo: false, uid_field: "uid"]]
         end do
@@ -99,15 +99,15 @@ defmodule Ueberauth.Strategy.OIDCTest do
 
     test "Handle callback from provider with a user_info endpoint" do
       with_mocks [
-        {GenServer, [:passtrough],
+        {GenServer, [],
          [call: fn _, _ -> %{"userinfo_endpoint" => "https://oidc.test/userinfo"} end]},
-        {HTTPoison, [:passtrough],
+        {HTTPoison, [],
          [
            get!: fn _, _ ->
              %HTTPoison.Response{body: "{\"sub\":\"string_key\",\"uid\":\"atom_key\"}"}
            end
          ]},
-        {Application, [:passtrough],
+        {Application, [],
          [
            get_env: fn
              (:ueberauth, OIDC, []) ->
