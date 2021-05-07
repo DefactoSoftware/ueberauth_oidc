@@ -89,8 +89,10 @@ defmodule Ueberauth.Strategy.OIDCTest do
          ]},
         {Application, [:passtrough],
          [
-           get_env: fn :ueberauth, OIDC, [] ->
-             [test_provider: [fetch_userinfo: true, userinfo_uid_field: "uid"]]
+           get_env: fn
+             (:ueberauth, OIDC, []) ->
+               [test_provider: [fetch_userinfo: true, userinfo_uid_field: "uid"]]
+             (:ueberauth_oidc, _, default) -> default
            end
          ]}
       ] do
