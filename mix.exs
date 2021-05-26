@@ -1,26 +1,18 @@
 defmodule UeberauthOIDC.Mixfile do
   use Mix.Project
 
-  @version "0.0.3"
-
   def project do
     [
       app: :ueberauth_oidc,
-      version: @version,
       name: "Ueberauth OIDC",
-      elixir: "~> 1.5",
+      version: "0.1.0",
+      elixir: "~> 1.7",
+      description: """
+      An Ueberauth strategy for generic OpenID Connect authentication.
+      """,
+      package: package(),
       start_permanent: Mix.env() == :prod,
-      description: description(),
-      deps: deps(),
-      dialyzer: [
-        plt_add_apps: [:plug],
-        flags: [
-          :unmatched_returns,
-          :error_handling,
-          :race_conditions,
-          :underspecs
-        ]
-      ]
+      deps: deps()
     ]
   end
 
@@ -30,17 +22,24 @@ defmodule UeberauthOIDC.Mixfile do
     ]
   end
 
-  defp deps do
+  defp package do
     [
-      {:dialyxir, "~> 0.5", only: :dev, runtime: false},
-      {:ex_doc, "~> 0.18", only: :dev, runtime: false},
-      {:mock, "~> 0.3.0", only: :test},
-      {:openid_connect, "~> 0.2.2"},
-      {:ueberauth, "~> 0.6"}
+      maintainers: ["Rick Littel - @Kuret"],
+      licenses: ["MIT"],
+      links: %{"GitHub" => "https://github.com/DefactoSoftware/ueberauth_oidc"}
     ]
   end
 
-  defp description do
-    "An Ueberauth strategy for generic OpenID Connect authentication."
+  defp deps do
+    [
+      {:credo, "~> 1.5", only: [:dev, :test]},
+      {:ex_doc, "~> 0.24", only: [:dev, :test]},
+      {:jose, "~> 1.11", override: true},
+      {:httpoison, "~> 1.8", override: true},
+      {:mock, "~> 0.3", only: :test},
+      {:openid_connect, "~> 0.2.2"},
+      {:plug, "~> 1.11"},
+      {:ueberauth, "~> 0.6"}
+    ]
   end
 end
