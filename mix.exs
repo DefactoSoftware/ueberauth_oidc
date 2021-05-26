@@ -24,6 +24,7 @@ defmodule UeberauthOIDC.Mixfile do
 
   defp package do
     [
+      organization: "defacto",
       maintainers: ["Rick Littel - @Kuret"],
       licenses: ["MIT"],
       links: %{"GitHub" => "https://github.com/DefactoSoftware/ueberauth_oidc"}
@@ -34,8 +35,8 @@ defmodule UeberauthOIDC.Mixfile do
     [
       {:credo, "~> 1.5", only: [:dev, :test]},
       {:ex_doc, "~> 0.24", only: [:dev, :test]},
-      {:jose, "~> 1.11", override: true},
-      {:httpoison, "~> 1.8", override: true},
+      {:jose, "~> 1.11"},
+      {:httpoison, "~> 1.8"},
       {:mock, "~> 0.3", only: :test},
       {:openid_connect, "~> 0.2.2"},
       {:plug, "~> 1.11"},
