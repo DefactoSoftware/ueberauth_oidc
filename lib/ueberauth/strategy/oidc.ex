@@ -203,15 +203,17 @@ defmodule Ueberauth.Strategy.OIDC do
           Keyword.get(oidc_opts, provider_id, [])
 
         false ->
-          Enum.find_value(oidc_opts, [], fn {key, val} ->
-            if provider_id == to_string(key), do: val
-          end)
+          Enum.find_value(oidc_opts, [], &find_provider_opts(&1, provider_id))
       end
 
     default_options()
     |> Keyword.merge(supplied_defaults)
     |> Keyword.merge(provider_opts)
     |> Keyword.put(:provider, provider_id)
+  end
+
+  defp find_provider_opts({key, val}, provider_id) do
+    if provider_id == to_string(key), do: val
   end
 
   defp expires_at(nil), do: nil
@@ -225,12 +227,12 @@ defmodule Ueberauth.Strategy.OIDC do
 
   defp expires_at(expires_in), do: unix_now() + expires_in
 
-  defp unix_now() do
+  defp unix_now do
     {mega, sec, _micro} = :os.timestamp()
     mega * 1_000_000 + sec
   end
 
-  defp http_client() do
+  defp http_client do
     Application.get_env(:ueberauth_oidc, :http_client, HTTPoison)
   end
 end
