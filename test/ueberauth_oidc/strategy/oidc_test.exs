@@ -4,6 +4,7 @@ defmodule Ueberauth.Strategy.OIDCTest do
 
   import Mock
 
+  alias Ueberauth.Strategy.Helpers
   alias Ueberauth.Strategy.OIDC
 
   @request_uri "https://oidc.local/request"
@@ -17,13 +18,13 @@ defmodule Ueberauth.Strategy.OIDCTest do
       {OpenIDConnect, [],
        [
          authorization_uri: fn
-           ("test_provider", %{redirect_uri: redirect_uri}) ->
+           "test_provider", %{redirect_uri: redirect_uri} ->
              "#{@request_uri}?redirect_uri=#{redirect_uri}"
          end,
          fetch_tokens: fn _, _ -> @valid_tokens end,
          verify: fn _, _ -> @valid_claims end
        ]},
-      {Ueberauth.Strategy.Helpers, [],
+      {Helpers, [],
        [
          options: fn _ -> [] end,
          set_errors!: fn _, _ -> nil end,
@@ -52,7 +53,7 @@ defmodule Ueberauth.Strategy.OIDCTest do
       })
 
       assert_called(
-        Ueberauth.Strategy.Helpers.set_errors!(:_, [
+        Helpers.set_errors!(:_, [
           {"error", "Authorization URL could not be constructed"}
         ])
       )
@@ -110,9 +111,11 @@ defmodule Ueberauth.Strategy.OIDCTest do
         {Application, [],
          [
            get_env: fn
-             (:ueberauth, OIDC, []) ->
+             :ueberauth, OIDC, [] ->
                [test_provider: [fetch_userinfo: true, userinfo_uid_field: "uid"]]
-             (:ueberauth_oidc, _, default) -> default
+
+             :ueberauth_oidc, _, default ->
+               default
            end
          ]}
       ] do
@@ -140,7 +143,7 @@ defmodule Ueberauth.Strategy.OIDCTest do
       OIDC.handle_callback!(%Plug.Conn{params: %{}})
 
       assert_called(
-        Ueberauth.Strategy.Helpers.set_errors!(:_, [
+        Helpers.set_errors!(:_, [
           {"error", "Query string does not contain field 'code'"}
         ])
       )
@@ -155,7 +158,7 @@ defmodule Ueberauth.Strategy.OIDCTest do
 
         assert_called(OpenIDConnect.fetch_tokens("test_provider", %{code: 1234}))
         refute called(OpenIDConnect.verify("test_provider", "4321"))
-        assert_called(Ueberauth.Strategy.Helpers.set_errors!(:_, [{"error", "reason"}]))
+        assert_called(Helpers.set_errors!(:_, [{"error", "reason"}]))
       end
     end
 
@@ -170,7 +173,7 @@ defmodule Ueberauth.Strategy.OIDCTest do
 
         assert_called(OpenIDConnect.fetch_tokens("test_provider", %{code: 1234}))
         assert_called(OpenIDConnect.verify("test_provider", "4321"))
-        assert_called(Ueberauth.Strategy.Helpers.set_errors!(:_, [{"error", "reason"}]))
+        assert_called(Helpers.set_errors!(:_, [{"error", "reason"}]))
       end
     end
 
@@ -181,9 +184,7 @@ defmodule Ueberauth.Strategy.OIDCTest do
           private: %{ueberauth_request_options: %{options: []}}
         })
 
-        assert_called(
-          Ueberauth.Strategy.Helpers.set_errors!(:_, [{:token_error, "some_message"}])
-        )
+        assert_called(Helpers.set_errors!(:_, [{:token_error, "some_message"}]))
       end
     end
 
@@ -194,11 +195,7 @@ defmodule Ueberauth.Strategy.OIDCTest do
           private: %{ueberauth_request_options: %{options: []}}
         })
 
-        assert_called(
-          Ueberauth.Strategy.Helpers.set_errors!(:_, [
-            {"unknown_error", {:unknown, "some_message"}}
-          ])
-        )
+        assert_called(Helpers.set_errors!(:_, [{"unknown_error", {:unknown, "some_message"}}]))
       end
     end
 
@@ -311,7 +308,7 @@ defmodule Ueberauth.Strategy.OIDCTest do
         private: %{
           ueberauth_oidc_user_info: %{
             "name" => "name",
-            "email" => "email",
+            "email" => "email"
           }
         }
       }
