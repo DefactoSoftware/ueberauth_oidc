@@ -14,9 +14,10 @@ defmodule Ueberauth.Strategy.OIDC do
   """
   def handle_request!(conn) do
     provider_id = conn |> get_options!() |> get_provider()
+    params = params_from_conn(conn)
 
     try do
-      uri = OpenIDConnect.authorization_uri(provider_id)
+      uri = OpenIDConnect.authorization_uri(provider_id, params)
       redirect!(conn, uri)
     rescue
       _ ->
@@ -39,9 +40,10 @@ defmodule Ueberauth.Strategy.OIDC do
       code ->
         opts = get_options!(conn)
         provider_id = get_provider(opts)
+        params = params_from_conn(conn, %{code: code})
 
         with {:ok, %{"access_token" => access_token, "id_token" => id_token} = tokens} <-
-               OpenIDConnect.fetch_tokens(provider_id, %{code: code}),
+               OpenIDConnect.fetch_tokens(provider_id, params),
              {:ok, claims} <- OpenIDConnect.verify(provider_id, id_token) do
           conn
           |> put_private(:ueberauth_oidc_claims, claims)
@@ -59,6 +61,11 @@ defmodule Ueberauth.Strategy.OIDC do
             set_error!(conn, "unknown_error", error)
         end
     end
+  end
+
+  defp params_from_conn(conn, params \\ %{}) do
+    redirect_uri = conn |> get_options!() |> get_redirect_uri()
+    %{redirect_uri: redirect_uri || callback_url(conn)} |> Map.merge(params)
   end
 
   defp maybe_put_userinfo(conn, opts, access_token) do
@@ -180,6 +187,7 @@ defmodule Ueberauth.Strategy.OIDC do
   end
 
   defp get_provider(opts), do: option(opts, :provider)
+  defp get_redirect_uri(opts), do: option(opts, :redirect_uri)
   defp option(opts, key), do: Keyword.get(opts, key)
 
   defp get_options!(conn) do
