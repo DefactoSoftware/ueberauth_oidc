@@ -319,6 +319,27 @@ defmodule Ueberauth.Strategy.OIDCTest do
              } = OIDC.info(conn)
     end
 
+    test "Get info from the conn and ignore invalid fields" do
+      info =
+        OIDC.info(%Plug.Conn{
+          private: %{
+            ueberauth_oidc_user_info: %{
+              "name" => "name",
+              "foo" => "bar"
+            }
+          }
+        })
+
+      refute Map.has_key?(info, :foo)
+      assert %Ueberauth.Auth.Info{name: "name"} = info
+    end
+
+    test "Get info from the conn when there is no info field" do
+      info = OIDC.info(%Plug.Conn{private: %{}})
+
+      assert %Ueberauth.Auth.Info{name: nil, email: nil} = info
+    end
+
     test "Get info from the conn when fetch_userinfo is disabled" do
       conn = %Plug.Conn{
         private: %{

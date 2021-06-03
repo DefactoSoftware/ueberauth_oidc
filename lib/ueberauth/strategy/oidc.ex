@@ -168,11 +168,13 @@ defmodule Ueberauth.Strategy.OIDC do
   This information is also included in the `Ueberauth.Auth.Credentials` struct.
   """
   def info(conn) do
-    with user_info when not is_nil(user_info) <-
-           conn.private[:ueberauth_oidc_user_info],
-         user_info <-
-           Enum.map(user_info, fn {k, v} -> {String.to_existing_atom(k), v} end) do
-      struct(Info, user_info)
+    with user_info when not is_nil(user_info) <- conn.private[:ueberauth_oidc_user_info] do
+      %Info{}
+      |> Map.from_struct()
+      |> Enum.reduce(%Info{}, fn {k, v}, struct ->
+        string_key = Atom.to_string(k)
+        Map.put(struct, k, Map.get(user_info, string_key, v))
+      end)
     else
       _ -> %Info{}
     end
