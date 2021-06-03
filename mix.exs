@@ -24,7 +24,6 @@ defmodule UeberauthOIDC.Mixfile do
 
   defp package do
     [
-      organization: "defacto",
       maintainers: ["Rick Littel - @Kuret"],
       licenses: ["MIT"],
       links: %{"GitHub" => "https://github.com/DefactoSoftware/ueberauth_oidc"}
