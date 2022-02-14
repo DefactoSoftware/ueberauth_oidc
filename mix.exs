@@ -39,7 +39,7 @@ defmodule UeberauthOIDC.Mixfile do
       {:mock, "~> 0.3", only: :test},
       {:openid_connect, "~> 0.2.2"},
       {:plug, "~> 1.11"},
-      {:ueberauth, "~> 0.6"}
+      {:ueberauth, "~> 0.7"}
     ]
   end
 end
