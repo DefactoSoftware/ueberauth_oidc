@@ -14,7 +14,9 @@ defmodule Ueberauth.Strategy.OIDC do
   """
   def handle_request!(conn) do
     provider_id = conn |> get_options!() |> get_provider()
+
     params = params_from_conn(conn)
+    params = with_state_param([], conn) |> Enum.into(params)
 
     try do
       uri = OpenIDConnect.authorization_uri(provider_id, params)

@@ -30,7 +30,8 @@ defmodule Ueberauth.Strategy.OIDCTest do
          set_errors!: fn _, _ -> nil end,
          error: fn key, msg -> {key, msg} end,
          redirect!: fn _, url -> url end,
-         callback_url: fn _ -> @callback_uri end
+         callback_url: fn _ -> @callback_uri end,
+         with_state_param: fn opts, conn -> passthrough([opts, conn]) end
        ]}
     ] do
       :ok
