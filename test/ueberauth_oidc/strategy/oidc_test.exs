@@ -17,11 +17,17 @@ defmodule Ueberauth.Strategy.OIDCTest do
     setup_with_mocks [
       {OpenIDConnect, [],
        [
-         authorization_uri: fn
-           "test_provider", %{redirect_uri: redirect_uri} ->
-             "#{@request_uri}?redirect_uri=#{redirect_uri}"
-         end,
-         fetch_tokens: fn _, _ -> @valid_tokens end,
+        authorization_uri: fn
+          "test_provider", %{redirect_uri: redirect_uri} = params ->
+            state_param =
+              case params[:state] do
+                nil -> ""
+                state -> "&state=#{state}"
+              end
+
+            "#{@request_uri}?redirect_uri=#{redirect_uri}#{state_param}"
+        end,
+        fetch_tokens: fn _, _ -> @valid_tokens end,
          verify: fn _, _ -> @valid_claims end
        ]},
       {Helpers, [],
@@ -30,8 +36,7 @@ defmodule Ueberauth.Strategy.OIDCTest do
          set_errors!: fn _, _ -> nil end,
          error: fn key, msg -> {key, msg} end,
          redirect!: fn _, url -> url end,
-         callback_url: fn _ -> @callback_uri end,
-         with_state_param: fn opts, conn -> passthrough([opts, conn]) end
+         callback_url: fn _ -> @callback_uri end
        ]}
     ] do
       :ok
@@ -45,6 +50,16 @@ defmodule Ueberauth.Strategy.OIDCTest do
         })
 
       assert request == "#{@request_uri}?redirect_uri=#{@callback_uri}"
+    end
+
+    test "Handles an OIDC request with a state param" do
+      request =
+        OIDC.handle_request!(%Plug.Conn{
+          params: %{"oidc_provider" => "test_provider"},
+          private: %{ueberauth_request_options: %{options: []}, ueberauth_state_param: "test_state"}
+        })
+
+      assert request == "#{@request_uri}?redirect_uri=#{@callback_uri}&state=test_state"
     end
 
     test "Handles an error in an OIDC request" do

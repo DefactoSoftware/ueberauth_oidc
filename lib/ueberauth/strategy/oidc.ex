@@ -14,9 +14,7 @@ defmodule Ueberauth.Strategy.OIDC do
   """
   def handle_request!(conn) do
     provider_id = conn |> get_options!() |> get_provider()
-
     params = params_from_conn(conn)
-    params = with_state_param([], conn) |> Enum.into(params)
 
     try do
       uri = OpenIDConnect.authorization_uri(provider_id, params)
@@ -67,7 +65,17 @@ defmodule Ueberauth.Strategy.OIDC do
 
   defp params_from_conn(conn, params \\ %{}) do
     redirect_uri = conn |> get_options!() |> get_redirect_uri()
-    %{redirect_uri: redirect_uri || callback_url(conn)} |> Map.merge(params)
+
+    %{redirect_uri: redirect_uri || callback_url(conn)}
+    |> Map.merge(state_params(conn))
+    |> Map.merge(params)
+  end
+
+  defp state_params(conn) do
+    case conn.private[:ueberauth_state_param] do
+      nil -> %{}
+      state -> %{state: state}
+    end
   end
 
   defp maybe_put_userinfo(conn, opts, access_token) do
