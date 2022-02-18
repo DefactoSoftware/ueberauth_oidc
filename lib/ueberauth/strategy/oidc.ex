@@ -65,7 +65,17 @@ defmodule Ueberauth.Strategy.OIDC do
 
   defp params_from_conn(conn, params \\ %{}) do
     redirect_uri = conn |> get_options!() |> get_redirect_uri()
-    %{redirect_uri: redirect_uri || callback_url(conn)} |> Map.merge(params)
+
+    %{redirect_uri: redirect_uri || callback_url(conn)}
+    |> Map.merge(state_params(conn))
+    |> Map.merge(params)
+  end
+
+  defp state_params(conn) do
+    case conn.private[:ueberauth_state_param] do
+      nil -> %{}
+      state -> %{state: state}
+    end
   end
 
   defp maybe_put_userinfo(conn, opts, access_token) do
