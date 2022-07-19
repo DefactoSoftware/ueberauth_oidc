@@ -313,6 +313,31 @@ defmodule Ueberauth.Strategy.OIDCTest do
 
       assert %{
                expires: true,
+               expires_at: 1234,
+               other: %{user_info: nil, provider: "some_provider"},
+               token: "1234",
+               token_type: "Bearer"
+             } = OIDC.credentials(conn)
+    end
+
+    test "Parses a binary exp value" do
+      conn = %Plug.Conn{
+        private: %{
+          ueberauth_oidc_tokens: %{
+            "id_token" => "4321",
+            "access_token" => "1234",
+            "token_type" => "Bearer"
+          },
+          ueberauth_oidc_claims: %{
+            "exp" => "1234"
+          },
+          ueberauth_oidc_opts: [provider: "some_provider"]
+        }
+      }
+
+      assert %{
+               expires: true,
+               expires_at: 1234,
                other: %{user_info: nil, provider: "some_provider"},
                token: "1234",
                token_type: "Bearer"
