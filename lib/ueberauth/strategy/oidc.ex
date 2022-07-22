@@ -237,12 +237,7 @@ defmodule Ueberauth.Strategy.OIDC do
     |> expires_at()
   end
 
-  defp expires_at(expires_in), do: unix_now() + expires_in
-
-  defp unix_now do
-    {mega, sec, _micro} = :os.timestamp()
-    mega * 1_000_000 + sec
-  end
+  defp expires_at(expires_at), do: expires_at
 
   defp http_client do
     Application.get_env(:ueberauth_oidc, :http_client, HTTPoison)
