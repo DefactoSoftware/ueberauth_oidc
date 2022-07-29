@@ -140,10 +140,12 @@ defmodule Ueberauth.Strategy.OIDC do
 
     exp_at = claims["exp"] |> scrub_value() |> expires_at()
     access_token = tokens["access_token"] |> scrub_value()
+    refresh_token = tokens["refresh_token"] |> scrub_value()
     token_type = tokens["token_type"] |> scrub_value()
 
     %Credentials{
       token: access_token,
+      refresh_token: refresh_token,
       token_type: token_type,
       expires: !!exp_at,
       expires_at: exp_at,
