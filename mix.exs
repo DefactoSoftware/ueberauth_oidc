@@ -5,7 +5,7 @@ defmodule UeberauthOIDC.Mixfile do
     [
       app: :ueberauth_oidc,
       name: "Ueberauth OIDC",
-      version: "0.1.4",
+      version: "0.1.5",
       elixir: "~> 1.7",
       description: """
       An Ueberauth strategy for generic OpenID Connect authentication.
