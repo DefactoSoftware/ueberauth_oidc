@@ -25,7 +25,13 @@ defmodule Ueberauth.Strategy.OIDCTest do
                  state -> "&state=#{state}"
                end
 
-             "#{@request_uri}?redirect_uri=#{redirect_uri}#{state_param}"
+             scope_param =
+               case params[:scope] do
+                 nil -> ""
+                 scope -> "&scope=#{scope}"
+               end
+
+             "#{@request_uri}?redirect_uri=#{redirect_uri}#{state_param}#{scope_param}"
          end,
          fetch_tokens: fn _, _ -> @valid_tokens end,
          verify: fn _, _ -> @valid_claims end
@@ -90,6 +96,21 @@ defmodule Ueberauth.Strategy.OIDCTest do
           })
 
         assert request =~ ~r|\?redirect_uri=https://oidc.local/custom$|
+      end
+    end
+
+    test "Handle callback from provider with custom request scopes" do
+      with_mock Application, [],
+        get_env: fn :ueberauth, OIDC, [] ->
+          [test_provider: [scope: "openid"]]
+        end do
+        request =
+          OIDC.handle_request!(%Plug.Conn{
+            params: %{"oidc_provider" => "test_provider"},
+            private: %{ueberauth_request_scope: "custom_scope"}
+          })
+
+        assert request =~ ~r|\&scope=custom_scope|
       end
     end
 
