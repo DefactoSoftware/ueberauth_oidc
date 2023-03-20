@@ -68,6 +68,7 @@ defmodule Ueberauth.Strategy.OIDC do
 
     %{redirect_uri: redirect_uri || callback_url(conn)}
     |> Map.merge(state_params(conn))
+    |> Map.merge(scope_params(conn))
     |> Map.merge(params)
   end
 
@@ -75,6 +76,13 @@ defmodule Ueberauth.Strategy.OIDC do
     case conn.private[:ueberauth_state_param] do
       nil -> %{}
       state -> %{state: state}
+    end
+  end
+
+  defp scope_params(conn) do
+    case conn.private[:ueberauth_request_scope] do
+      nil -> %{}
+      scope -> %{scope: scope}
     end
   end
 
