@@ -17,7 +17,15 @@ defmodule Ueberauth.Strategy.OIDC do
     params = params_from_conn(conn)
 
     try do
-      uri = OpenIDConnect.authorization_uri(provider_id, params)
+      uri =
+        if custom_uri = Map.get(conn.params, "uri") do
+          custom_query = query_map(custom_uri)
+          custom_params = Map.merge(params, custom_query)
+          build_uri(custom_uri, custom_params)
+        else
+          OpenIDConnect.authorization_uri(provider_id, params)
+        end
+
       redirect!(conn, uri)
     rescue
       _ ->
@@ -251,5 +259,27 @@ defmodule Ueberauth.Strategy.OIDC do
 
   defp http_client do
     Application.get_env(:ueberauth_oidc, :http_client, HTTPoison)
+  end
+
+  @spec query_map(URI.t() | String.t()) :: %{String.t() => String.t()}
+  defp query_map(uri_string) when is_binary(uri_string),
+    do: uri_string |> URI.new!() |> query_map()
+
+  defp query_map(%URI{query: nil}), do: decode_query_string_to_map("")
+  defp query_map(%URI{query: query}), do: decode_query_string_to_map(query)
+
+  @spec decode_query_string_to_map(String.t()) :: %{String.t() => String.t()}
+  defp decode_query_string_to_map(query_string) do
+    query_string
+    |> URI.query_decoder()
+    |> Enum.into(%{})
+  end
+
+  defp build_uri(uri, params) do
+    query = URI.encode_query(params)
+
+    uri
+    |> URI.merge("?#{query}")
+    |> URI.to_string()
   end
 end

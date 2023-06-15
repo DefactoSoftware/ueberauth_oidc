@@ -71,6 +71,38 @@ defmodule Ueberauth.Strategy.OIDCTest do
       assert request == "#{@request_uri}?redirect_uri=#{@callback_uri}&state=test_state"
     end
 
+    test "Handles an OIDC request for a custom URI" do
+      custom_uri = "https://example.com/custom/path"
+
+      request =
+        OIDC.handle_request!(%Plug.Conn{
+          params: %{
+            "oidc_provider" => "test_provider",
+            "uri" => custom_uri
+          },
+          private: %{ueberauth_request_options: %{options: []}}
+        })
+
+      assert request == "#{custom_uri}?#{URI.encode_query(%{redirect_uri: @callback_uri})}"
+    end
+
+    test "Handles an OIDC request for a custom URI with query params" do
+      base_uri = "https://example.com/custom/path"
+
+      request =
+        OIDC.handle_request!(%Plug.Conn{
+          params: %{
+            "oidc_provider" => "test_provider",
+            "uri" => "#{base_uri}?foo=bar"
+          },
+          private: %{ueberauth_request_options: %{options: []}}
+        })
+
+      assert request =~ "#{base_uri}?"
+      assert request =~ "redirect_uri="
+      assert request =~ "foo=bar"
+    end
+
     test "Handles an error in an OIDC request" do
       OIDC.handle_request!(%Plug.Conn{
         params: %{"oidc_provider" => "unregistered_provider"},
