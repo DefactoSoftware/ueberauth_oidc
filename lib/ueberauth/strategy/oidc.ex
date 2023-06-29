@@ -106,11 +106,12 @@ defmodule Ueberauth.Strategy.OIDC do
   end
 
   defp get_userinfo(provider_id, access_token) do
+    options = Application.get_env(:ueberauth_oidc, :request_opts, [])
     headers = [Authorization: "Bearer #{access_token}", "Content-Type": "application/json"]
 
     with %{"userinfo_endpoint" => userinfo_endpoint} <-
            GenServer.call(:openid_connect, {:discovery_document, provider_id}),
-         %HTTPoison.Response{body: body} <- http_client().get!(userinfo_endpoint, headers),
+         %HTTPoison.Response{body: body} <- http_client().get!(userinfo_endpoint, headers, options),
          userinfo_claims <- Jason.decode!(body) do
       user_info = for {k, v} <- userinfo_claims, do: {to_string(k), v}, into: %{}
       {:ok, user_info}
