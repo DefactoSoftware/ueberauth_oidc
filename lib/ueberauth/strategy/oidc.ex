@@ -177,12 +177,26 @@ defmodule Ueberauth.Strategy.OIDC do
     userinfo = conn.private[:ueberauth_oidc_userinfo] || %{}
     claims = Map.merge(conn.private.ueberauth_oidc_claims, userinfo)
 
-    %Info{}
-    |> Map.from_struct()
-    |> Enum.reduce(%Info{}, fn {k, v}, struct ->
-      string_key = Atom.to_string(k)
-      Map.put(struct, k, Map.get(claims, string_key, v))
-    end)
+    urls =
+      %{}
+      |> add_optional_url(:profile, claims["profile"])
+      |> add_optional_url(:website, claims["website"])
+
+    # https://openid.net/specs/openid-connect-core-1_0.html#Claims
+    %Info{
+      name: claims["name"],
+      first_name: claims["first_name"],
+      last_name: claims["last_name"],
+      nickname: claims["nickname"],
+      email: claims["email"],
+      # address claim is a JSON blob
+      location: nil,
+      description: nil,
+      image: claims["picture"],
+      phone: claims["phone_number"],
+      birthday: claims["birthdate"],
+      urls: urls
+    }
   end
 
   defp set_error!(conn, key, message) do
@@ -213,4 +227,8 @@ defmodule Ueberauth.Strategy.OIDC do
   end
 
   defp expires_at(expires_at), do: expires_at
+
+  defp add_optional_url(urls, field, value)
+  defp add_optional_url(urls, _field, nil), do: urls
+  defp add_optional_url(urls, field, value), do: Map.put(urls, field, value)
 end

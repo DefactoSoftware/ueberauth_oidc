@@ -92,7 +92,15 @@ defmodule FakeOpenIDConnect do
      %{
        "sub" => "userinfo_sub",
        "name" => "Full Name",
-       "email" => "userinfo_email"
+       "first_name" => "First",
+       "last_name" => "Last",
+       "nickname" => "Nickname",
+       "email" => "test@email.example",
+       "picture" => "http://photo.example",
+       "phone_number" => "phone_number_value",
+       "birthdate" => "1970-01-01",
+       "profile" => "http://profile.example",
+       "website" => "http://website.example"
      }}
   end
 

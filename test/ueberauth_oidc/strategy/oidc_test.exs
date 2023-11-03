@@ -179,10 +179,20 @@ defmodule Ueberauth.Strategy.OIDCTest do
       conn = run_request_and_callback(conn, options)
 
       assert %Ueberauth.Auth{
-               uid: "userinfo_email",
+               uid: "test@email.example",
                info: %Ueberauth.Auth.Info{
                  name: "Full Name",
-                 email: "userinfo_email"
+                 first_name: "First",
+                 last_name: "Last",
+                 nickname: "Nickname",
+                 email: "test@email.example",
+                 image: "http://photo.example",
+                 phone: "phone_number_value",
+                 birthday: "1970-01-01",
+                 urls: %{
+                   profile: "http://profile.example",
+                   website: "http://website.example"
+                 }
                }
              } = conn.assigns.ueberauth_auth
     end
