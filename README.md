@@ -51,6 +51,22 @@ for a list of supported options.
         }
       ]
     ```
+You can also split the configuration into compile- and run-time settings:
+
+    ```elixir
+    config :ueberauth, Ueberauth,
+      providers: [
+        oidc: { Ueberauth.Strategy.OIDC,
+          discovery_document_uri: "https://oidc.example/.well-known/openid-configuration",
+          client_id: "client_id"
+        }
+      ]
+
+    config :ueberauth, Ueberauth.Strategy.OIDC,
+      oidc: [
+        client_secret: System.fetch_env!("OIDC_CLIENT_SECRET")
+      ]
+    ```
 
 ## Usage
 

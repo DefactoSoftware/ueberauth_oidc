@@ -190,13 +190,19 @@ defmodule Ueberauth.Strategy.OIDC do
   end
 
   defp get_options!(conn) do
-    Map.merge(
-      %{
-        module: OpenIDConnect,
-        redirect_uri: callback_url(conn)
-      },
-      Map.new(options(conn))
-    )
+    defaults = %{
+      module: OpenIDConnect,
+      redirect_uri: callback_url(conn)
+    }
+
+    compile_opts = Map.new(options(conn))
+
+    runtime_opts =
+      Map.new((Application.get_env(:ueberauth, strategy(conn)) || [])[strategy_name(conn)] || %{})
+
+    defaults
+    |> Map.merge(compile_opts)
+    |> Map.merge(runtime_opts)
   end
 
   defp expires_at(val) when is_binary(val) do

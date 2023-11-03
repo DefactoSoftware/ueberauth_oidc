@@ -37,6 +37,27 @@ defmodule Ueberauth.Strategy.OIDCTest do
              } = query
     end
 
+    test "handle overriding configuration with application config", %{conn: conn} do
+      Application.put_env(
+        :ueberauth,
+        Ueberauth.Strategy.OIDC,
+        override_provider: [
+          scope: "openid override-scope"
+        ]
+      )
+
+      conn = Ueberauth.run_request(conn, :override_provider, {OIDC, @default_options})
+
+      assert {302, _headers, _body} = sent_resp(conn)
+
+      [location] = get_resp_header(conn, "location")
+      query = URI.decode_query(URI.parse(location).query)
+
+      assert %{
+               "scope" => "openid override-scope"
+             } = query
+    end
+
     test "Handles an error in an OIDC request", %{conn: conn} do
       options = Keyword.delete(@default_options, :discovery_document_uri)
       conn = Ueberauth.run_request(conn, :provider, {OIDC, options})
