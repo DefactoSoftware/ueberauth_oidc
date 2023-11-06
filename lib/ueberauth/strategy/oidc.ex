@@ -13,17 +13,34 @@ defmodule Ueberauth.Strategy.OIDC do
   Handles the initial authentication request.
   """
   def handle_request!(conn) do
-    provider_id = conn |> get_options!() |> get_provider()
+    opts = get_options!(conn)
     params = params_from_conn(conn)
 
+    params =
+      if request_params = Map.get(opts, :request_params) do
+        Map.merge(params, request_params)
+      else
+        params
+      end
+
     try do
-      uri =
-        if custom_uri = Map.get(conn.params, "uri") do
-          custom_query = query_map(custom_uri)
-          custom_params = Map.merge(params, custom_query)
-          build_uri(custom_uri, custom_params)
+      {:ok, uri} =
+        if request_uri = Map.get(opts, :request_uri) do
+          params =
+            Map.merge(
+              params,
+              %{
+                "client_id" => opts.client_id,
+                "redirect_uri" => opts.redirect_uri,
+                "response_type" => opts.response_type,
+                "scope" => opts.scope
+              }
+            )
+
+          query = URI.encode_query(params)
+          {:ok, "#{request_uri}?#{query}"}
         else
-          OpenIDConnect.authorization_uri(provider_id, params)
+          opts.module.authorization_uri(opts, params)
         end
 
       redirect!(conn, uri)
@@ -47,73 +64,40 @@ defmodule Ueberauth.Strategy.OIDC do
 
       code ->
         opts = get_options!(conn)
-        provider_id = get_provider(opts)
         params = params_from_conn(conn, %{code: code})
 
         with {:ok, %{"access_token" => access_token, "id_token" => id_token} = tokens} <-
-               OpenIDConnect.fetch_tokens(provider_id, params),
-             {:ok, claims} <- OpenIDConnect.verify(provider_id, id_token) do
+               opts.module.fetch_tokens(opts, params),
+             {:ok, claims} <- opts.module.verify(opts, id_token) do
           conn
           |> put_private(:ueberauth_oidc_claims, claims)
           |> put_private(:ueberauth_oidc_tokens, tokens)
           |> put_private(:ueberauth_oidc_opts, opts)
           |> maybe_put_userinfo(opts, access_token)
         else
-          {:error, type, reason} ->
-            set_error!(conn, type, reason)
-
           {:error, reason} ->
             set_error!(conn, "error", reason)
-
-          error ->
-            set_error!(conn, "unknown_error", error)
         end
     end
   end
 
   defp params_from_conn(conn, params \\ %{}) do
-    redirect_uri = conn |> get_options!() |> get_redirect_uri()
-
-    %{redirect_uri: redirect_uri || callback_url(conn)}
-    |> Map.merge(state_params(conn))
-    |> Map.merge(scope_params(conn))
+    []
+    |> with_state_param(conn)
+    |> Map.new()
     |> Map.merge(params)
   end
 
-  defp state_params(conn) do
-    case conn.private[:ueberauth_state_param] do
-      nil -> %{}
-      state -> %{state: state}
-    end
-  end
-
-  defp scope_params(conn) do
-    case conn.private[:ueberauth_request_scope] do
-      nil -> %{}
-      scope -> %{scope: scope}
-    end
-  end
-
   defp maybe_put_userinfo(conn, opts, access_token) do
-    with true <- option(opts, :fetch_userinfo),
-         provider_id <- get_provider(opts),
-         {:ok, user_info} <- get_userinfo(provider_id, access_token) do
-      put_private(conn, :ueberauth_oidc_user_info, user_info)
+    with true <- Map.get(opts, :fetch_userinfo, false),
+         {:ok, userinfo} <- opts.module.fetch_userinfo(opts, access_token) do
+      put_private(conn, :ueberauth_oidc_userinfo, userinfo)
     else
-      false -> conn
-      e -> set_error!(conn, "error", "Error retrieving userinfo:" <> inspect(e))
-    end
-  end
+      false ->
+        conn
 
-  defp get_userinfo(provider_id, access_token) do
-    headers = [Authorization: "Bearer #{access_token}", "Content-Type": "application/json"]
-
-    with %{"userinfo_endpoint" => userinfo_endpoint} <-
-           GenServer.call(:openid_connect, {:discovery_document, provider_id}),
-         %HTTPoison.Response{body: body} <- http_client().get!(userinfo_endpoint, headers),
-         userinfo_claims <- Jason.decode!(body) do
-      user_info = for {k, v} <- userinfo_claims, do: {to_string(k), v}, into: %{}
-      {:ok, user_info}
+      {:error, reason} ->
+        set_error!(conn, "error", reason)
     end
   end
 
@@ -123,7 +107,7 @@ defmodule Ueberauth.Strategy.OIDC do
     |> put_private(:ueberauth_oidc_opts, nil)
     |> put_private(:ueberauth_oidc_claims, nil)
     |> put_private(:ueberauth_oidc_tokens, nil)
-    |> put_private(:ueberauth_oidc_user_info, nil)
+    |> put_private(:ueberauth_oidc_userinfo, nil)
   end
 
   @doc """
@@ -132,14 +116,14 @@ defmodule Ueberauth.Strategy.OIDC do
   def uid(conn) do
     private = conn.private
 
-    with true <- option(private.ueberauth_oidc_opts, :fetch_userinfo),
-         user_info <- option(private.ueberauth_oidc_opts, :userinfo_uid_field),
-         true <- is_bitstring(user_info) do
-      scrub_value(private.ueberauth_oidc_user_info[user_info])
+    with true <- Map.get(private.ueberauth_oidc_opts, :fetch_userinfo, false),
+         userinfo when is_bitstring(userinfo) <-
+           Map.get(private.ueberauth_oidc_opts, :userinfo_uid_field, "sub") do
+      private.ueberauth_oidc_userinfo[userinfo]
     else
       _ ->
-        uid_field = option(private.ueberauth_oidc_opts, :uid_field)
-        scrub_value(private.ueberauth_oidc_claims[uid_field])
+        uid_field = Map.get(private.ueberauth_oidc_opts, :uid_field, "sub")
+        private.ueberauth_oidc_claims[uid_field]
     end
   end
 
@@ -150,14 +134,13 @@ defmodule Ueberauth.Strategy.OIDC do
   """
   def credentials(conn) do
     private = conn.private
-    claims = conn.private.ueberauth_oidc_claims
-    tokens = conn.private.ueberauth_oidc_tokens
-    user_info = conn.private[:ueberauth_oidc_user_info]
+    claims = private.ueberauth_oidc_claims
+    tokens = private.ueberauth_oidc_tokens
 
-    exp_at = claims["exp"] |> scrub_value() |> expires_at()
-    access_token = tokens["access_token"] |> scrub_value()
-    refresh_token = tokens["refresh_token"] |> scrub_value()
-    token_type = tokens["token_type"] |> scrub_value()
+    exp_at = expires_at(claims["exp"])
+    access_token = tokens["access_token"]
+    refresh_token = tokens["refresh_token"]
+    token_type = tokens["token_type"]
 
     %Credentials{
       token: access_token,
@@ -166,25 +149,20 @@ defmodule Ueberauth.Strategy.OIDC do
       expires: !!exp_at,
       expires_at: exp_at,
       other: %{
-        user_info: user_info,
-        provider: get_provider(private.ueberauth_oidc_opts)
+        id_token: tokens["id_token"]
       }
     }
   end
 
   @doc """
-  Returns an `Ueberauth.Auth.Extra` struct containing the raw token map
-  obtained from `:oidcc`.
-
-  Since `:oidcc` is an erlang library, empty values in the map are
-  represented by `:undefined` or `:none`, not `nil`.
+  Returns an `Ueberauth.Auth.Extra` struct containing the raw tokens, claims, and opts.
   """
   def extra(conn) do
     %Extra{
       raw_info: %{
+        opts: conn.private.ueberauth_oidc_opts,
         claims: conn.private.ueberauth_oidc_claims,
-        tokens: conn.private.ueberauth_oidc_tokens,
-        opts: conn.private.ueberauth_oidc_opts
+        userinfo: conn.private[:ueberauth_oidc_userinfo]
       }
     }
   end
@@ -196,57 +174,50 @@ defmodule Ueberauth.Strategy.OIDC do
   This information is also included in the `Ueberauth.Auth.Credentials` struct.
   """
   def info(conn) do
-    with user_info when not is_nil(user_info) <- conn.private[:ueberauth_oidc_user_info] do
-      %Info{}
-      |> Map.from_struct()
-      |> Enum.reduce(%Info{}, fn {k, v}, struct ->
-        string_key = Atom.to_string(k)
-        Map.put(struct, k, Map.get(user_info, string_key, v))
-      end)
-    else
-      _ -> %Info{}
-    end
-  end
+    userinfo = conn.private[:ueberauth_oidc_userinfo] || %{}
+    claims = Map.merge(conn.private.ueberauth_oidc_claims, userinfo)
 
-  defp scrub_value(:undefined), do: nil
-  defp scrub_value(:none), do: nil
-  defp scrub_value(val), do: val
+    urls =
+      %{}
+      |> add_optional_url(:profile, claims["profile"])
+      |> add_optional_url(:website, claims["website"])
+
+    # https://openid.net/specs/openid-connect-core-1_0.html#Claims
+    %Info{
+      name: claims["name"],
+      first_name: claims["first_name"],
+      last_name: claims["last_name"],
+      nickname: claims["nickname"],
+      email: claims["email"],
+      # address claim is a JSON blob
+      location: nil,
+      description: nil,
+      image: claims["picture"],
+      phone: claims["phone_number"],
+      birthday: claims["birthdate"],
+      urls: urls
+    }
+  end
 
   defp set_error!(conn, key, message) do
     set_errors!(conn, [error(key, message)])
   end
 
-  defp get_provider(opts), do: option(opts, :provider)
-  defp get_redirect_uri(opts), do: option(opts, :redirect_uri)
-  defp option(opts, key), do: Keyword.get(opts, key)
-
   defp get_options!(conn) do
-    oidc_opts = Application.get_env(:ueberauth, __MODULE__, [])
-    supplied_defaults = conn |> options() |> Keyword.get(:default, [])
+    defaults = %{
+      module: OpenIDConnect,
+      redirect_uri: callback_url(conn)
+    }
 
-    # untrusted input
-    provider_id = conn.params["oidc_provider"] || Keyword.fetch!(supplied_defaults, :provider)
+    compile_opts = Map.new(options(conn))
 
-    provider_opts =
-      case is_atom(provider_id) do
-        true ->
-          Keyword.get(oidc_opts, provider_id, [])
+    runtime_opts =
+      Map.new((Application.get_env(:ueberauth, strategy(conn)) || [])[strategy_name(conn)] || %{})
 
-        false ->
-          Enum.find_value(oidc_opts, [], &find_provider_opts(&1, provider_id))
-      end
-
-    default_options()
-    |> Keyword.merge(supplied_defaults)
-    |> Keyword.merge(provider_opts)
-    |> Keyword.put(:provider, provider_id)
+    defaults
+    |> Map.merge(compile_opts)
+    |> Map.merge(runtime_opts)
   end
-
-  defp find_provider_opts({key, val}, provider_id) do
-    if provider_id == to_string(key), do: val
-  end
-
-  defp expires_at(nil), do: nil
 
   defp expires_at(val) when is_binary(val) do
     val
@@ -257,29 +228,7 @@ defmodule Ueberauth.Strategy.OIDC do
 
   defp expires_at(expires_at), do: expires_at
 
-  defp http_client do
-    Application.get_env(:ueberauth_oidc, :http_client, HTTPoison)
-  end
-
-  @spec query_map(URI.t() | String.t()) :: %{String.t() => String.t()}
-  defp query_map(uri_string) when is_binary(uri_string),
-    do: uri_string |> URI.new!() |> query_map()
-
-  defp query_map(%URI{query: nil}), do: decode_query_string_to_map("")
-  defp query_map(%URI{query: query}), do: decode_query_string_to_map(query)
-
-  @spec decode_query_string_to_map(String.t()) :: %{String.t() => String.t()}
-  defp decode_query_string_to_map(query_string) do
-    query_string
-    |> URI.query_decoder()
-    |> Enum.into(%{})
-  end
-
-  defp build_uri(uri, params) do
-    query = URI.encode_query(params)
-
-    uri
-    |> URI.merge("?#{query}")
-    |> URI.to_string()
-  end
+  defp add_optional_url(urls, field, value)
+  defp add_optional_url(urls, _field, nil), do: urls
+  defp add_optional_url(urls, field, value), do: Map.put(urls, field, value)
 end
